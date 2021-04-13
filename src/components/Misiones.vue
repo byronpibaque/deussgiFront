@@ -1,0 +1,496 @@
+<template>
+  <v-layout align-start>
+    <v-flex>
+      <v-toolbar flat color="white" v-if="verNuevo == 0">
+        <v-toolbar-title>Misiones</v-toolbar-title>
+        <v-divider class="mx-2" inset vertical></v-divider>
+        <v-spacer></v-spacer>
+        <v-text-field
+          class="text-xs-center"
+          v-model="search"
+          append-icon="search"
+          label="Búsqueda"
+          single-line
+          hide-details
+        ></v-text-field>
+        <v-spacer></v-spacer>
+        <v-btn
+          color="primary"
+          v-if="verNuevo == 0"
+          @click="mostrarNuevo()"
+          dark
+          class="mb-2"
+          >Nuevo</v-btn
+        >
+        <v-dialog v-model="adModal" max-width="290">
+          <v-card>
+            <v-card-title class="headline" v-if="adAccion == 1">
+              Activar Item
+            </v-card-title>
+            <v-card-title class="headline" v-if="adAccion == 2">
+              Desactivar Item
+            </v-card-title>
+            <v-card-text>
+              Estás a punto de <span v-if="adAccion == 1">activar </span>
+              <span v-if="adAccion == 2">desactivar </span> el item
+              {{ adNombre }}
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer></v-spacer>
+              <v-btn
+                @click="activarDesactivarCerrar()"
+                color="green darken-1"
+                flat="flat"
+              >
+                Cancelar
+              </v-btn>
+              <v-btn
+                v-if="adAccion == 1"
+                @click="activar()"
+                color="orange darken-4"
+                flat="flat"
+              >
+                Activar
+              </v-btn>
+              <v-btn
+                v-if="adAccion == 2"
+                @click="desactivar()"
+                color="orange darken-4"
+                flat="flat"
+              >
+                Desactivar
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+      </v-toolbar>
+
+      <v-toolbar
+        flat
+        color="white"
+        v-if="$store.state.usuario.rol == '5ff86c9fe04cdc30f4805fe2' && verNuevo==0" 
+      >
+        <v-flex xs12 sm3 md3 lg3 xl3>
+          <v-autocomplete
+            v-on:change="listarXcongregacion()"
+            :items="congregaciones"
+            v-model="codigoCongregacion"
+            placeholder="Seleccione una congregacion"
+          ></v-autocomplete>
+        </v-flex>
+      </v-toolbar>
+
+      <v-data-table
+        :headers="headers"
+        :items="arry"
+        :search="search"
+        class="elevation-1"
+        v-if="verNuevo == 0"
+      >
+        <template v-slot:items="props">
+          <td class="justify-center layout px-0">
+            <v-icon small class="mr-2" @click="verIngreso(props.item)"
+              >tab</v-icon
+            >
+            <template v-if="props.item.estado">
+              <v-icon small @click="activarDesactivarMostrar(2, props.item)">
+                block
+              </v-icon>
+            </template>
+            <template v-else>
+              <v-icon small @click="activarDesactivarMostrar(1, props.item)">
+                check
+              </v-icon>
+            </template>
+          </td>
+
+          <td>{{ props.item.numeroRegistro }}</td>
+          <td v-if="props.item.fecha">{{ props.item.fecha }}</td>
+          <td v-else>Sin fecha</td>
+          <td>${{ props.item.valor }}</td>
+          <td>{{ props.item.codigoUsuario.nombres }}</td>
+          <td>{{ props.item.codigoCongregacion.abreviatura }}</td>
+          <td>
+            <div v-if="props.item.estado">
+              <span class="blue--text">Activo</span>
+            </div>
+            <div v-else>
+              <span class="red--text">Inactivo</span>
+            </div>
+          </td>
+        </template>
+        <template v-slot:no-data>
+          <v-btn color="primary" @click="listar()">Resetear</v-btn>
+        </template>
+      </v-data-table>
+    
+      <v-container grid-list-sm class="pa-4 white" v-if="verNuevo">
+        <span class="blue--text" style="font-size: 30px">Ofrendas para misiones</span>
+        <v-layout row wrap>
+          <v-flex xs12 sm3 md3 lg3 xl3>
+            <v-text-field
+              v-model="numeroRegistro"
+              label="Numero de registro"
+            ></v-text-field>
+          </v-flex>
+          <!-- Calendario -->
+          <v-flex xs12 sm3 md3 lg3 xl3>
+            <v-dialog
+              ref="dialog"
+              v-model="modalCalendario"
+              :return-value.sync="fecha"
+              persistent
+              width="290px"
+            >
+              <template v-slot:activator="{ on, attrs }">
+                <v-text-field
+                  v-model="fecha"
+                  label="Fecha de registro"
+                  prepend-icon="event"
+                  readonly
+                  v-bind="attrs"
+                  v-on="on"
+                ></v-text-field>
+              </template>
+              <v-date-picker v-model="fecha" scrollable>
+                <v-spacer></v-spacer>
+                <v-btn text color="primary" @click="modalCalendario = false"
+                  >Cancelar</v-btn
+                >
+                <v-btn text color="success" @click="$refs.dialog.save(fecha)"
+                  >Aceptar</v-btn
+                >
+              </v-date-picker>
+            </v-dialog>
+          </v-flex>
+           <v-flex xs12 sm8 md8 lg8 xl8>
+            <v-text-field
+              v-model="descripcion"
+              
+              label="Descripcion"
+            ></v-text-field>
+          </v-flex>
+          <v-flex xs12 sm2 md2 lg2 xl2>
+            <v-text-field
+              v-model="valor"
+              prefix="$"
+              label="Ofrenda para misiones"
+            ></v-text-field>
+          </v-flex>
+          <v-flex xs12 sm12 md12 v-show="valida">
+            <div
+              class="red--text"
+              v-for="v in validaMensaje"
+              :key="v"
+              v-text="v"
+            ></div>
+          </v-flex>
+          <v-flex xs12 sm12 md12 lg12 xl12>
+            <v-btn color="blue darken-1" flat @click.native="cerrarNuevo()"
+              >Cancelar</v-btn
+            >
+            <v-btn
+              color="success"
+              v-if="verDetalle == 0"
+              @click.native="guardar()"
+              >Guardar</v-btn
+            >
+          </v-flex>
+        </v-layout>
+      </v-container>
+    </v-flex>
+  </v-layout>
+</template>
+<script>
+import axios from "axios";
+import Swal from "sweetalert2";
+import moment from 'moment';
+export default {
+  data() {
+    return {
+      nombres: "",
+      cedula: "",
+      cargos: [],
+      Sex: ["HOMBRE", "MUJER"],
+      sexo: "",
+      codigoCargo: "",
+      congregacionesM: [],
+      codigoCongregacionM: "",
+      congregaciones: [],
+      codigoCongregacion: "",
+      direccion: "",
+      telefono: "",
+      correo: "",
+      modalMiembros: 0,
+      totalDiezmo: 0.0,
+      diezmo: 0.0,
+      miembros: [],
+      codigoMiembro: "",
+      ofrenda: 0.0,
+      ofrendaMisionera: 0.0,
+      ofrendaEspecial: 0.0,
+      ofrendaPrimicia: 0.0,
+      otrasOfrendas: 0.0,
+      numeroRegistro: moment().format("DDMMYYYY"),
+
+      modalCalendario: false,
+      fecha: "",
+      cabeceraDetalles: [
+        { text: "Opciones", value: "opciones", sortable: false },
+        { text: "Miembro", value: "nombres", sortable: false },
+        { text: "Diezmo", value: "diezmo", sortable: false },
+      ],
+      detalles: [],
+      verDetalle: 0,
+      verNuevo: 0,
+      dialog: false,
+      search: "",
+      arry: [],
+      headers: [
+        { text: "Opciones", value: "opciones", sortable: false },
+        { text: "Numero de boleta", value: "numeroRegistro", sortable: false },
+        { text: "Fecha de registro", value: "fecha", sortable: false },
+        { text: "Valor", value: "valor", sortable: false },
+        { text: "Usuario", value: "codigoUsuario", sortable: false },
+        { text: "Congregacion", value: "codigoCongregacion", sortable: false },
+        { text: "Estado", value: "estado", sortable: false },
+      ],
+      editedIndex: -1,
+      _id: "",
+
+      valida: 0,
+      validaMensaje: [],
+      adModal: 0,
+      adAccion: 0,
+      adNombre: "",
+      adId: "",
+    };
+  },
+  computed: {
+    calcularTotal: function () {
+      let resultado = 0.0;
+      for (var i = 0; i < this.detalles.length; i++) {
+        resultado = parseFloat(resultado) + parseFloat(this.detalles[i].valor);
+      }
+      return resultado;
+    },
+  },
+  watch: {
+    dialog(val) {
+      val || this.close();
+    },
+  },
+  created() {
+    this.listar();
+    this.ConsultarCongregacion();
+
+    this.ConsultarCongregacionM();
+
+  },
+  methods: {
+      verIngreso(item) {
+      this.limpiar();
+
+      this.fecha = item.fecha;
+      this.numeroRegistro = item.numeroRegistro;
+      this.valor = item.valor;
+      this.descripcion = item.descripcion;
+     
+      
+      this.verNuevo = 1;
+      this.verDetalle = 1;
+    },   
+    ConsultarCongregacion() {
+      let me = this;
+      let arryRes = [];
+      let header = { Token: this.$store.state.token };
+      let configuracion = { headers: header };
+      axios
+        .get("congregacion/list", configuracion)
+        .then(function (response) {
+          arryRes = response.data;
+          arryRes.map(function (x) {
+            me.congregaciones.push({ text: x.abreviatura, value: x._id });
+          });
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+    },
+    ConsultarCongregacionM() {
+      let me = this;
+      let arryRes = [];
+      let header = { Token: this.$store.state.token };
+      let configuracion = { headers: header };
+      axios
+        .get("congregacion/list", configuracion)
+        .then(function (response) {
+          arryRes = response.data;
+          arryRes.map(function (x) {
+            me.congregacionesM.push({ text: x.abreviatura, value: x._id });
+          });
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+    },
+  
+    listarXcongregacion(){
+      this.arry=[]
+      let me = this
+        let header = { Token: this.$store.state.token };
+      let configuracion = { headers: header };
+       axios
+        .get("misiones/listxcongregacion?codigoCongregacion="+this.codigoCongregacion, configuracion)
+        .then(function (response) {
+          me.arry = response.data;
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+    },
+    listar() {
+      let me = this;
+      let header = { Token: this.$store.state.token };
+      let configuracion = { headers: header };
+      if(this.$store.state.usuario.rol!="5ff86c9fe04cdc30f4805fe2"){//si no es administrador
+    axios
+        .get("misiones/listxcongregacion?codigoCongregacion="+this.$store.state.usuario.codigoCongregacion, configuracion)
+        .then(function (response) {
+          me.arry = response.data;
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+      }
+        
+     
+    },
+   
+    limpiar() {
+      this._id = "";
+      this.fecha = "";
+      
+      this.valor = "";
+      this.descripcion="";  
+      this.valida = 0;
+      this.validaMensaje = [];
+      this.editedIndex = -1;
+    },
+    validar() {
+      this.valida = 0;
+      this.validaMensaje = [];
+
+      if (this.numeroRegistro.length > 13) {
+        this.validaMensaje.push(
+          "EL numero de registro no debe ser mayor a 13 digitos.."
+        );
+      }
+      if (!this.fecha) {
+        this.validaMensaje.push("Ingrese la fecha.");
+      }
+      if (this.validaMensaje.length) {
+        this.valida = 1;
+      }
+      return this.valida;
+    },
+    guardar() {
+      let me = this;
+      if (this.validar()) {
+        return;
+      }
+
+      //Código para guardar
+      axios
+        .post("misiones/add", {
+          fecha: this.fecha,
+          numeroRegistro: this.numeroRegistro,
+          descripcion:this.descripcion,
+          valor: parseFloat(this.valor),
+          codigoCongregacion: this.$store.state.usuario.codigoCongregacion,
+          codigoUsuario: this.$store.state.usuario._id,
+        })
+        .then(function (response) {
+          me.limpiar();
+          me.cerrarNuevo();
+          me.listar();
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+    },
+    editItem(item) {
+      this._id = item._id;
+
+      this.descripcion = item.descripcion;
+      this.valor = item.valor;
+      this.fecha=item.fecha
+      this.numeroRegistro=item.numeroRegistro
+      this.codigoCongregacion=item.ConsultarCongregacion._id
+      this.dialog = true;
+      this.editedIndex = 1;
+    },
+    activarDesactivarMostrar(accion, item) {
+      this.adModal = 1;
+      this.adNombre = item.descripcion;
+      this.adId = item._id;
+      if (accion == 1) {
+        this.adAccion = 1;
+      } else if (accion == 2) {
+        this.adAccion = 2;
+      } else {
+        this.adModal = 0;
+      }
+    },
+    activarDesactivarCerrar() {
+      this.adModal = 0;
+    },
+    activar() {
+      let me = this;
+      axios
+        .put("misiones/activate", { _id: this.adId })
+        .then(function (response) {
+          me.adModal = 0;
+          me.adAccion = 0;
+          me.adNombre = "";
+          me.adId = "";
+          me.listar();
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+    },
+    desactivar() {
+      let me = this;
+      axios
+        .put("misiones/deactivate", { _id: this.adId })
+        .then(function (response) {
+          me.adModal = 0;
+          me.adAccion = 0;
+          me.adNombre = "";
+          me.adId = "";
+          me.listar();
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
+    },
+    close() {
+      this.dialog = false;
+    },
+    mostrarNuevo() {
+      this.verNuevo = 1;
+    },
+    cerrarNuevo() {
+      this.limpiar();
+      this.verNuevo = 0;
+    },
+    abrirModalMiembros() {
+      this.modalMiembros = 1;
+    },
+    cerrarModalMiembros() {
+      this.modalMiembros = 0;
+    },
+  },
+};
+</script>
